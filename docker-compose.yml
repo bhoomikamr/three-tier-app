@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  frontend:
+    image: nginx-custom
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      - custom-network
+    depends_on: [backend]
+
+  backend:
+    image: backend
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=admin1234
+      - REDIS_HOST=queue
+    depends_on: 
+      db:
+        condition: service_healthy
+    networks:
+      - custom-network
+
+  worker:
+    image: worker
+    build:
+      context: worker
+      dockerfile: Dockerfile
+    environment:
+      - DB_HOST=db
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=admin1234
+      - REDIS_HOST=queue
+    networks:
+      - custom-network
+    depends_on:
+      db:
+        condition: service_healthy
+      queue:
+        condition: service_started
+
+  db:
+    image: postgres:18-alpine
+    shm_size: 128mb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=admin1234
+      - POSTGRES_DB=postgres
+    volumes:
+      - db-data:/var/lib/postgresql
+    networks:
+      - custom-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  queue:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  db-data: 
+
+networks:
+  custom-network:
+    driver: bridge
