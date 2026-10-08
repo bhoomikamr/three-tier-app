@@ -22,7 +22,7 @@ pipeline{
                sh '''docker run --rm \
                -v "$(pwd):/app" \
                -w "/app" \
-               python:3.9-slim sh -c "pip install pytest -r backend/requirements.txt worker/requirements.txt && \
+               python:3.9-slim sh -c "pip install pytest -r backend/requirements.txt -r worker/requirements.txt && \
                PYTHONPATH=. pytest tests/backend_test.py tests/worker_test.py --junitxml=pythonresults.xml"
                '''  
 
@@ -35,7 +35,7 @@ pipeline{
                 -v "$(pwd):/app" \
                 -w "/app/frontend" \
                 node:22-alpine sh -c "npm ci && \
-                npm test ../tests/App.test.js --reporters=default --reporters=jest-junit --watchAll=false"
+                npm test -- ../tests/App.test.js --reporters=default --reporters=jest-junit --watchAll=false"
                 '''
             }
         }
@@ -60,15 +60,17 @@ pipeline{
 
         stage('Build Image') {
             steps {
-                sh 'docker compose build --no-cache'
+                sh 'docker compose build'
                 }
         }
         
         stage('Trivy Image Scan') {
             steps {
-                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL nginx-custom'
-                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL frontend'
-                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL backend'
+                sh '''
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL nginx-custom
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL backend
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL worker
+                '''
                 }
             }
             
